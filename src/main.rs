@@ -75,6 +75,7 @@ impl Actions for Ups {
     }
 
     fn print(&self) {
+        println!();
         println!(
             "{}\t{}\t{}\t{}",
             "App".light_blue(),
@@ -160,7 +161,18 @@ impl Actions for Ups {
             .apps
             .get(name)
             .ok_or(format!("App `{}` is not registered.", name))?;
-        let value = String::from_utf8(Command::new(&app.script_path).output()?.stdout)?;
+        print!(
+            "{}",
+            format!("Fetching latest value of `{}` app...", name).yellow()
+        );
+        std::io::stdout().flush()?;
+        let output = Command::new(&app.script_path).output()?;
+        if output.status.success() {
+            println!("{}", "Ok".green());
+        } else {
+            return Err(format!("Failed:\n{}", String::from_utf8(output.stderr)?).into());
+        }
+        let value = String::from_utf8(output.stdout)?;
         let value = value.trim();
         if value.is_empty() {
             Ok(NONE.to_owned())
