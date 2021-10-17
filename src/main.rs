@@ -2,9 +2,9 @@ use std::io::Write;
 use std::path::Path;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
+mod colors;
 use crate::colors::Color;
 
-mod colors;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 const NONE: &str = "NONE";
