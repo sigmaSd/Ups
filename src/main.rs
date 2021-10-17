@@ -46,8 +46,8 @@ trait Actions: Drop {
 #[derive(Debug)]
 struct App {
     script_path: PathBuf,
-    latest_value: Option<String>,
-    snapshot_value: Option<String>,
+    latest_value: String,
+    snapshot_value: String,
 }
 #[derive(Default)]
 struct Ups {
@@ -59,8 +59,8 @@ impl Actions for Ups {
             name,
             App {
                 script_path: Path::new(script_path).canonicalize()?,
-                latest_value: None,
-                snapshot_value: None,
+                latest_value: NONE.to_owned(),
+                snapshot_value: NONE.to_owned(),
             },
         );
         Ok(())
@@ -69,8 +69,8 @@ impl Actions for Ups {
     fn snapshot(&mut self, name: &str) -> Result<()> {
         let latest_value = self.latest_value(name)?;
         let app = self.apps.get_mut(name).expect("Already checked");
-        app.latest_value = Some(latest_value.clone());
-        app.snapshot_value = Some(latest_value);
+        app.latest_value = latest_value.clone();
+        app.snapshot_value = latest_value;
         Ok(())
     }
 
@@ -93,8 +93,8 @@ impl Actions for Ups {
             println!(
                 "{}\t{}\t{}\t{}",
                 name.yellow(),
-                diff_color(app.snapshot_value.as_ref().unwrap_or(&NONE.to_string())),
-                diff_color(app.latest_value.as_ref().unwrap_or(&NONE.to_string())),
+                diff_color(&app.snapshot_value),
+                diff_color(&app.latest_value),
                 app.script_path.display().to_string().rgb(100, 80, 250)
             );
         }
@@ -108,8 +108,8 @@ impl Actions for Ups {
                 data,
                 "{}\t{}\t{}\t{}\t",
                 name,
-                app.snapshot_value.as_ref().unwrap_or(&NONE.to_string()),
-                app.latest_value.as_ref().unwrap_or(&NONE.to_string()),
+                app.snapshot_value,
+                app.latest_value,
                 app.script_path.display()
             )?;
         }
@@ -139,16 +139,8 @@ impl Actions for Ups {
                 name.into(),
                 App {
                     script_path: script_path.into(),
-                    latest_value: if latest_value != NONE {
-                        Some(latest_value.into())
-                    } else {
-                        None
-                    },
-                    snapshot_value: if snapshot_value != NONE {
-                        Some(snapshot_value.into())
-                    } else {
-                        None
-                    },
+                    latest_value: latest_value.into(),
+                    snapshot_value: snapshot_value.into(),
                 },
             );
         }
@@ -188,7 +180,7 @@ impl Actions for Ups {
             self.apps
                 .get_mut(&name)
                 .expect("Already checked")
-                .latest_value = Some(latest_value);
+                .latest_value = latest_value;
         }
         Ok(())
     }
