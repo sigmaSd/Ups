@@ -2,8 +2,7 @@ use std::io::Write;
 use std::path::Path;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
-mod colors;
-use crate::colors::Color;
+use scolor::Color;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
