@@ -49,10 +49,12 @@ struct App {
     latest_value: String,
     snapshot_value: String,
 }
+
 #[derive(Default)]
 struct Ups {
     apps: HashMap<String, App>,
 }
+
 impl Actions for Ups {
     fn insert(&mut self, name: String, script_path: &str) -> Result<()> {
         self.apps.insert(
