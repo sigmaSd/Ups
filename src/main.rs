@@ -85,7 +85,7 @@ impl Actions for Ups {
         );
 
         for (name, app) in &self.apps {
-            let diff_color: fn(&str) -> String = if app.snapshot_value == app.latest_value {
+            let diff_color = if app.snapshot_value == app.latest_value {
                 Color::green
             } else {
                 Color::red

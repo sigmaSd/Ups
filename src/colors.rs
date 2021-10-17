@@ -1,13 +1,11 @@
 #![allow(missing_docs)]
+
+use std::fmt::Display;
+
 const DEL1: &str = "\x1b[";
 const DEL2: &str = "m";
 const DEL3: &str = "\x1b[0m";
 const FG: &str = "38";
-
-fn color(string: &str, color: Palette) -> String {
-    //"\x1b[$(fg/bg);2;$r;$g;$bm$string\x1b[0m"
-    format!("{}{};2;{}{}{}{}", DEL1, FG, color, DEL2, string, DEL3)
-}
 
 enum Palette {
     Red,
@@ -41,7 +39,10 @@ pub trait Color {
     fn rgb(&self, r: u8, g: u8, b: u8) -> String;
 }
 
-impl Color for str {
+impl<T> Color for T
+where
+    T: Display,
+{
     fn red(&self) -> String {
         color(self, Palette::Red)
     }
@@ -60,4 +61,9 @@ impl Color for str {
     fn rgb(&self, r: u8, g: u8, b: u8) -> String {
         color(self, Palette::Rgb(r, g, b))
     }
+}
+
+fn color(string: impl Display, color: Palette) -> String {
+    //"\x1b[$(fg/bg);2;$r;$g;$bm$string\x1b[0m"
+    format!("{}{};2;{}{}{}{}", DEL1, FG, color, DEL2, string, DEL3)
 }
