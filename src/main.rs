@@ -1,22 +1,20 @@
 use std::io::Write;
+use std::path::Path;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
 use crate::colors::Color;
 
 mod colors;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-//ups insert shortwave path_to_script
-//ups shortwave snapshot
-
-//ups
-//program   snapshot value    script
-//shortwave    X      R       path_to_script
 
 const NONE: &str = "NONE";
 
 fn main() -> Result<()> {
+    let mut ups = Ups::default();
+    let ups: &mut dyn Actions = &mut ups;
+    ups.load()?;
+
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let mut ups = Ups::load()?;
     match args
         .iter()
         .map(|a| a.as_str())
@@ -27,12 +25,22 @@ fn main() -> Result<()> {
             ups.update_latest_value()?;
             ups.print();
         }
-        ["insert", name, script_path] => ups.insert(name.to_string(), script_path),
+        ["insert", name, script_path] => ups.insert(name.to_string(), script_path)?,
         ["snapshot", name] => ups.snapshot(name)?,
         ["get", name] => println!("{}", ups.latest_value(name)?),
         _ => unimplemented!(),
     }
     Ok(())
+}
+
+trait Actions: Drop {
+    fn insert(&mut self, name: String, script_path: &str) -> Result<()>;
+    fn snapshot(&mut self, name: &str) -> Result<()>;
+    fn latest_value(&self, name: &str) -> Result<String>;
+    fn update_latest_value(&mut self) -> Result<()>;
+    fn print(&self);
+    fn load(&mut self) -> Result<()>;
+    fn save(&self) -> Result<()>;
 }
 
 #[derive(Debug)]
@@ -46,15 +54,16 @@ struct Ups {
     apps: HashMap<String, App>,
 }
 impl Actions for Ups {
-    fn insert(&mut self, name: String, script_path: &str) {
+    fn insert(&mut self, name: String, script_path: &str) -> Result<()> {
         self.apps.insert(
             name,
             App {
-                script_path: script_path.into(),
+                script_path: Path::new(script_path).canonicalize()?,
                 latest_value: None,
                 snapshot_value: None,
             },
         );
+        Ok(())
     }
 
     fn snapshot(&mut self, name: &str) -> Result<()> {
@@ -91,7 +100,7 @@ impl Actions for Ups {
     }
 
     fn save(&self) -> Result<()> {
-        let mut data = std::fs::File::create(Self::data_path()?)?;
+        let mut data = std::fs::File::create(data_path()?)?;
 
         for (name, app) in &self.apps {
             writeln!(
@@ -106,13 +115,13 @@ impl Actions for Ups {
         Ok(())
     }
 
-    fn load() -> Result<Self>
+    fn load(&mut self) -> Result<()>
     where
         Self: Sized,
     {
-        let data_path = Self::data_path()?;
+        let data_path = data_path()?;
         if !data_path.exists() {
-            return Ok(Self::default());
+            return Ok(());
         }
 
         let data = std::fs::read_to_string(data_path)?;
@@ -142,7 +151,8 @@ impl Actions for Ups {
                 },
             );
         }
-        Ok(Ups { apps })
+        self.apps = apps;
+        Ok(())
     }
 
     fn latest_value(&self, name: &str) -> Result<String> {
@@ -150,11 +160,7 @@ impl Actions for Ups {
             .apps
             .get(name)
             .ok_or(format!("App `{}` is not registered.", name))?;
-        let value = String::from_utf8(
-            Command::new(&app.script_path.canonicalize()?)
-                .output()?
-                .stdout,
-        )?;
+        let value = String::from_utf8(Command::new(&app.script_path).output()?.stdout)?;
         let value = value.trim();
         if value.is_empty() {
             Ok(NONE.to_owned())
@@ -182,26 +188,14 @@ impl Drop for Ups {
     }
 }
 
-trait Actions: Drop {
-    fn insert(&mut self, name: String, script_path: &str);
-    fn snapshot(&mut self, name: &str) -> Result<()>;
-    fn latest_value(&self, name: &str) -> Result<String>;
-    fn update_latest_value(&mut self) -> Result<()>;
-    fn print(&self);
-    fn load() -> Result<Self>
-    where
-        Self: Sized;
-    fn save(&self) -> Result<()>;
-
-    fn data_path() -> Result<PathBuf> {
-        let data_dir = dirs::data_dir()
-            .ok_or("Can not find xdg_data_dir")?
-            .join("ups");
-        if let Err(e) = std::fs::create_dir_all(&data_dir) {
-            if e.kind() != ErrorKind::AlreadyExists {
-                return Err(e.into());
-            }
+fn data_path() -> Result<PathBuf> {
+    let data_dir = dirs::data_dir()
+        .ok_or("Can not find xdg_data_dir")?
+        .join("ups");
+    if let Err(e) = std::fs::create_dir_all(&data_dir) {
+        if e.kind() != ErrorKind::AlreadyExists {
+            return Err(e.into());
         }
-        Ok(data_dir.join("data"))
     }
+    Ok(data_dir.join("data"))
 }
