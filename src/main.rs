@@ -33,6 +33,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[allow(drop_bounds)]
 trait Actions: Drop {
     fn insert(&mut self, name: String, script_path: &str) -> Result<()>;
     fn snapshot(&mut self, name: &str) -> Result<()>;
@@ -188,7 +189,9 @@ impl Actions for Ups {
 
 impl Drop for Ups {
     fn drop(&mut self) {
-        let _ = self.save();
+        if let Err(e) = self.save() {
+            eprintln!("Failed to save data:\n{}", e);
+        }
     }
 }
 
