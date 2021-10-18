@@ -27,7 +27,7 @@ fn main() -> Result<()> {
         ["insert", name, script_path] => ups.insert(name.to_string(), script_path)?,
         ["snapshot", name] => ups.snapshot(name)?,
         ["get", name] => println!("{}", ups.latest_value(name)?),
-        _ => unimplemented!(),
+        _ => println!("{}", usage()),
     }
     Ok(())
 }
@@ -206,4 +206,12 @@ fn data_path() -> Result<PathBuf> {
         }
     }
     Ok(data_dir.join("data"))
+}
+
+fn usage() -> &'static str {
+    "Ups: Check for app's updates
+
+    - ups # Check for updates
+    - ups insert [app] [check_update_script_path] # Insert an app into ups
+    - ups snapshot [app] # Snapshot latest version"
 }
