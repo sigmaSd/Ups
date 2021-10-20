@@ -2,7 +2,7 @@ use std::io::Write;
 use std::path::Path;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
-use scolor::{ColorExt};
+use scolor::ColorExt;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -162,7 +162,7 @@ impl Actions for Ups {
         std::io::stdout().flush()?;
         let output = Command::new(&app.script_path).output()?;
         if output.status.success() {
-            println!("{}", "Ok".green());
+            println!("{}", "Ok".green().bold());
         } else {
             return Err(format!("Failed:\n{}", String::from_utf8(output.stderr)?).into());
         }
