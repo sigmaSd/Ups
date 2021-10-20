@@ -72,9 +72,9 @@ dependencies = [
 
 [[package]]
 name = "scolor"
-version = "2.0.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7512bd5cc15dd25a75ef9533ae115ec88327e1eb9e0644055e62cf7b855f8e3a"
+checksum = "9caaed443da879316762a5296e0775b87af9bd7fecf14b6bfa5ad16b33e1c3d3"
 
 [[package]]
 name = "ups"

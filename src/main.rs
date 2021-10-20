@@ -2,7 +2,7 @@ use std::io::Write;
 use std::path::Path;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
-use scolor::{Color, ColorExt};
+use scolor::{ColorExt};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -97,7 +97,7 @@ impl Actions for Ups {
                 name.yellow().bold(),
                 diff_color(&app.snapshot_value),
                 diff_color(&app.latest_value),
-                app.script_path.display().rgb(100, 80, 250).italic()
+                app.script_path.display().rgb_fg(100, 80, 250).italic()
             );
         }
     }
