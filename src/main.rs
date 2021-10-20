@@ -2,7 +2,7 @@ use std::io::Write;
 use std::path::Path;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
-use scolor::Color;
+use scolor::{Color, ColorExt};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -80,24 +80,24 @@ impl Actions for Ups {
         println!();
         println!(
             "{}\t{}\t{}\t{}",
-            "App".light_blue(),
-            "SnapshotValue".light_blue(),
-            "LatestValue".light_blue(),
-            "ScriptPath".light_blue()
+            "App".light_blue().underline(),
+            "SnapshotValue".light_blue().underline(),
+            "LatestValue".light_blue().underline(),
+            "ScriptPath".light_blue().underline()
         );
 
         for (name, app) in &self.apps {
             let diff_color = if app.snapshot_value == app.latest_value {
-                Color::green
+                ColorExt::green
             } else {
-                Color::red
+                ColorExt::red
             };
             println!(
                 "{}\t{}\t{}\t{}",
-                name.yellow(),
+                name.yellow().bold(),
                 diff_color(&app.snapshot_value),
                 diff_color(&app.latest_value),
-                app.script_path.display().to_string().rgb(100, 80, 250)
+                app.script_path.display().rgb(100, 80, 250).italic()
             );
         }
     }
