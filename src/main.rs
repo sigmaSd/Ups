@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args
         .iter()
-        .map(|a| a.as_str())
+        .map(String::as_str)
         .collect::<Vec<_>>()
         .as_slice()
     {
@@ -97,7 +97,7 @@ impl Actions for Ups {
                 name.yellow().bold(),
                 diff_color(&app.snapshot_value),
                 diff_color(&app.latest_value),
-                app.script_path.display().rgb_fg(100, 80, 250).italic()
+                app.script_path.display().rgb(100, 80, 250).italic()
             );
         }
     }
@@ -122,13 +122,13 @@ impl Actions for Ups {
     where
         Self: Sized,
     {
+        const PARSE_ERROR: &str = "Error while parsing data file";
         let data_path = data_path()?;
         if !data_path.exists() {
             return Ok(());
         }
 
         let data = std::fs::read_to_string(data_path)?;
-        const PARSE_ERROR: &str = "Error while parsing data file";
 
         let mut apps = HashMap::new();
         for line in data.lines() {
@@ -208,7 +208,7 @@ fn data_path() -> Result<PathBuf> {
     Ok(data_dir.join("data"))
 }
 
-fn usage() -> &'static str {
+const fn usage() -> &'static str {
     "Ups: Check for app's updates
 
     - ups # Check for updates
