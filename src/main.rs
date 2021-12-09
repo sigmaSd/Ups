@@ -77,14 +77,19 @@ impl Actions for Ups {
     }
 
     fn print(&self) {
-        println!();
-        println!(
-            "{}\t{}\t{}\t{}",
-            "App".light_blue().underline(),
-            "SnapshotValue".light_blue().underline(),
-            "LatestValue".light_blue().underline(),
-            "ScriptPath".light_blue().underline()
-        );
+        use term_table::row::Row;
+        use term_table::table_cell::TableCell;
+        use term_table::{Table, TableStyle};
+
+        let mut table = Table::new();
+        table.style = TableStyle::rounded();
+
+        table.add_row(Row::new(vec![
+            TableCell::new("App".light_blue().underline()),
+            TableCell::new("SnapshotValue".light_blue().underline()),
+            TableCell::new("LatestValue".light_blue().underline()),
+            TableCell::new("ScriptPath".light_blue().underline()),
+        ]));
 
         for (name, app) in &self.apps {
             let diff_color = if app.snapshot_value == app.latest_value {
@@ -92,14 +97,14 @@ impl Actions for Ups {
             } else {
                 ColorExt::red
             };
-            println!(
-                "{}\t{}\t{}\t{}",
-                name.yellow().bold(),
-                diff_color(&app.snapshot_value),
-                diff_color(&app.latest_value),
-                app.script_path.display().rgb(100, 80, 250).italic()
-            );
+            table.add_row(Row::new(vec![
+                TableCell::new(name.yellow().bold()),
+                TableCell::new(diff_color(&app.snapshot_value)),
+                TableCell::new(diff_color(&app.latest_value)),
+                TableCell::new(app.script_path.display().rgb(100, 80, 250).italic()),
+            ]));
         }
+        println!("\n{}", table.render());
     }
 
     fn save(&self) -> Result<()> {
@@ -161,17 +166,15 @@ impl Actions for Ups {
         );
         std::io::stdout().flush()?;
         let output = Command::new(&app.script_path).output()?;
-        if output.status.success() {
-            println!("{}", "Ok".green().bold());
-        } else {
-            return Err(format!("Failed:\n{}", String::from_utf8(output.stderr)?).into());
-        }
         let value = String::from_utf8(output.stdout)?;
         let value = value.trim();
-        if value.is_empty() {
-            Ok(NONE.to_owned())
-        } else {
+
+        if output.status.success() && !value.is_empty() {
+            println!("{}", "Ok".green().bold());
             Ok(value.to_owned())
+        } else {
+            println!("{}", "Failed".red().bold());
+            return Ok(NONE.to_owned());
         }
     }
 
