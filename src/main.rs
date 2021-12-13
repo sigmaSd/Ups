@@ -10,7 +10,9 @@ const NONE: &str = "NONE";
 
 fn main() -> Result<()> {
     let mut ups = Ups::default();
-    let ups: &mut dyn Actions = &mut ups;
+    let guard = Guard(&mut ups);
+    let ups: &mut dyn ActionsInternal = guard.0;
+
     ups.load()?;
 
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -24,23 +26,34 @@ fn main() -> Result<()> {
             ups.update_latest_value()?;
             ups.print();
         }
-        ["insert", name, script_path] => ups.insert(name.to_string(), script_path)?,
+        ["insert", name, script_path] => ups.insert((*name).to_string(), script_path)?,
         ["snapshot", name] => ups.snapshot(name)?,
         ["get", name] => println!("{}", ups.latest_value(name)?),
+        ["show", name] => println!("{}", ups.show_script(name)?),
         _ => println!("{}", usage()),
     }
     Ok(())
 }
 
-#[allow(drop_bounds)]
-trait Actions: Drop {
+trait Actions {
+    fn update_latest_value(&mut self) -> Result<()>;
+    fn print(&self);
     fn insert(&mut self, name: String, script_path: &str) -> Result<()>;
     fn snapshot(&mut self, name: &str) -> Result<()>;
     fn latest_value(&self, name: &str) -> Result<String>;
-    fn update_latest_value(&mut self) -> Result<()>;
-    fn print(&self);
+    fn show_script(&self, name: &str) -> Result<String>;
+}
+trait ActionsInternal: Actions {
     fn load(&mut self) -> Result<()>;
     fn save(&self) -> Result<()>;
+}
+struct Guard<'a>(&'a mut dyn ActionsInternal);
+impl Drop for Guard<'_> {
+    fn drop(&mut self) {
+        if let Err(e) = self.0.save() {
+            eprintln!("Failed to save data:\n{}", e);
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -106,7 +119,53 @@ impl Actions for Ups {
         }
         println!("\n{}", table.render());
     }
+    fn latest_value(&self, name: &str) -> Result<String> {
+        let app = self
+            .apps
+            .get(name)
+            .ok_or(format!("App `{}` is not registered.", name))?;
+        print!(
+            "{}",
+            format!("Fetching latest value of `{}` app...", name).yellow()
+        );
+        std::io::stdout().flush()?;
+        let output = Command::new(&app.script_path).output()?;
+        let value = String::from_utf8(output.stdout)?;
+        let value = value.trim();
 
+        if output.status.success() && !value.is_empty() {
+            println!("{}", "Ok".green().bold());
+            Ok(value.to_owned())
+        } else {
+            println!("{}", "Failed".red().bold());
+            Ok(NONE.to_owned())
+        }
+    }
+
+    fn update_latest_value(&mut self) -> Result<()> {
+        let apps: Vec<_> = self.apps.iter().map(|(name, _)| name.clone()).collect();
+        for name in apps {
+            let latest_value = self.latest_value(&name)?;
+            self.apps
+                .get_mut(&name)
+                .expect("Already checked")
+                .latest_value = latest_value;
+        }
+        Ok(())
+    }
+
+    fn show_script(&self, name: &str) -> Result<String> {
+        let app = self
+            .apps
+            .iter()
+            .find(|(n, _)| n == &name)
+            .ok_or("Unknown script")?;
+        Ok(std::fs::read_to_string(&app.1.script_path)?
+            .trim()
+            .to_owned())
+    }
+}
+impl ActionsInternal for Ups {
     fn save(&self) -> Result<()> {
         let mut data = std::fs::File::create(data_path()?)?;
 
@@ -154,49 +213,6 @@ impl Actions for Ups {
         self.apps = apps;
         Ok(())
     }
-
-    fn latest_value(&self, name: &str) -> Result<String> {
-        let app = self
-            .apps
-            .get(name)
-            .ok_or(format!("App `{}` is not registered.", name))?;
-        print!(
-            "{}",
-            format!("Fetching latest value of `{}` app...", name).yellow()
-        );
-        std::io::stdout().flush()?;
-        let output = Command::new(&app.script_path).output()?;
-        let value = String::from_utf8(output.stdout)?;
-        let value = value.trim();
-
-        if output.status.success() && !value.is_empty() {
-            println!("{}", "Ok".green().bold());
-            Ok(value.to_owned())
-        } else {
-            println!("{}", "Failed".red().bold());
-            return Ok(NONE.to_owned());
-        }
-    }
-
-    fn update_latest_value(&mut self) -> Result<()> {
-        let apps: Vec<_> = self.apps.iter().map(|(name, _)| name.clone()).collect();
-        for name in apps {
-            let latest_value = self.latest_value(&name)?;
-            self.apps
-                .get_mut(&name)
-                .expect("Already checked")
-                .latest_value = latest_value;
-        }
-        Ok(())
-    }
-}
-
-impl Drop for Ups {
-    fn drop(&mut self) {
-        if let Err(e) = self.save() {
-            eprintln!("Failed to save data:\n{}", e);
-        }
-    }
 }
 
 fn data_path() -> Result<PathBuf> {
@@ -216,5 +232,7 @@ const fn usage() -> &'static str {
 
     - ups # Check for updates
     - ups insert [app] [check_update_script_path] # Insert an app into ups
-    - ups snapshot [app] # Snapshot latest version"
+    - ups snapshot [app] # Snapshot latest version
+    - ups get [app] # Show the latest version of the specified app
+    - ups show [app] # Show the script of the specified app"
 }
