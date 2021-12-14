@@ -2,10 +2,16 @@ use std::io::Write;
 use std::path::Path;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
-use scolor::ColorExt;
+use scolor::{Color, ColorDesc, ColorExt, ColorType};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+const PURPLE_COLOR: ColorDesc = ColorDesc {
+    r: 100,
+    g: 80,
+    b: 250,
+    color_type: ColorType::Fg,
+};
 const NONE: &str = "NONE";
 
 fn main() -> Result<()> {
@@ -29,7 +35,10 @@ fn main() -> Result<()> {
         ["insert", name, script_path] => ups.insert((*name).to_string(), script_path)?,
         ["snapshot", name] => ups.snapshot(name)?,
         ["get", name] => println!("{}", ups.latest_value(name)?),
-        ["show", name] => println!("{}", ups.show_script(name)?),
+        ["show", name] => {
+            let (path, content) = ups.show_script(name)?;
+            println!("{}\n{}", path.display().color(PURPLE_COLOR), content);
+        }
         _ => println!("{}", usage()),
     }
     Ok(())
@@ -41,7 +50,7 @@ trait Actions {
     fn insert(&mut self, name: String, script_path: &str) -> Result<()>;
     fn snapshot(&mut self, name: &str) -> Result<()>;
     fn latest_value(&self, name: &str) -> Result<String>;
-    fn show_script(&self, name: &str) -> Result<String>;
+    fn show_script(&self, name: &str) -> Result<(PathBuf, String)>;
 }
 trait ActionsInternal: Actions {
     fn load(&mut self) -> Result<()>;
@@ -114,7 +123,7 @@ impl Actions for Ups {
                 TableCell::new(name.yellow().bold()),
                 TableCell::new(diff_color(&app.snapshot_value)),
                 TableCell::new(diff_color(&app.latest_value)),
-                TableCell::new(app.script_path.display().rgb(100, 80, 250).italic()),
+                TableCell::new(app.script_path.display().color(PURPLE_COLOR).italic()),
             ]));
         }
         println!("\n{}", table.render());
@@ -154,15 +163,18 @@ impl Actions for Ups {
         Ok(())
     }
 
-    fn show_script(&self, name: &str) -> Result<String> {
+    fn show_script(&self, name: &str) -> Result<(PathBuf, String)> {
         let app = self
             .apps
             .iter()
             .find(|(n, _)| n == &name)
             .ok_or("Unknown script")?;
-        Ok(std::fs::read_to_string(&app.1.script_path)?
-            .trim()
-            .to_owned())
+        Ok((
+            app.1.script_path.clone(),
+            std::fs::read_to_string(&app.1.script_path)?
+                .trim()
+                .to_owned(),
+        ))
     }
 }
 impl ActionsInternal for Ups {
