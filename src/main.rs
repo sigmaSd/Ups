@@ -34,7 +34,7 @@ fn main() -> Result<()> {
         }
         ["insert", name, script_path] => ups.insert((*name).to_string(), script_path)?,
         ["snapshot", name] => ups.snapshot(name)?,
-        ["get", name] => println!("{}", ups.latest_value(name)?.join_it()?),
+        ["get", name] => println!("{}", ups.latest_value(name)?.tawait()?),
         ["show", name] => {
             let (path, content) = ups.show_script(name)?;
             println!("{}\n{}", path.display().color(PURPLE_COLOR), content);
@@ -91,7 +91,7 @@ impl Actions for Ups {
     }
 
     fn snapshot(&mut self, name: &str) -> Result<()> {
-        let latest_value = self.latest_value(name)?.join_it()?;
+        let latest_value = self.latest_value(name)?.tawait()?;
         let app = self.apps.get_mut(name).expect("Already checked");
         app.latest_value = latest_value.clone();
         app.snapshot_value = latest_value;
@@ -164,7 +164,7 @@ impl Actions for Ups {
         }
         let new_values: Vec<_> = new_values
             .into_iter()
-            .map(|(n, v)| (n, v.join_it()))
+            .map(|(n, v)| (n, v.tawait()))
             .collect();
         for (n, v) in new_values {
             self.apps.get_mut(&n).expect("Already checked").latest_value = v?;
@@ -259,10 +259,10 @@ const fn usage() -> &'static str {
 }
 
 trait Join<T> {
-    fn join_it(self) -> T;
+    fn tawait(self) -> T;
 }
 impl<T> Join<T> for std::thread::JoinHandle<T> {
-    fn join_it(self) -> T {
+    fn tawait(self) -> T {
         self.join().expect("Thread panicked")
     }
 }
