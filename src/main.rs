@@ -4,7 +4,7 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
 use scolor::{Color, ColorDesc, ColorExt, ColorType};
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 const PURPLE_COLOR: ColorDesc = ColorDesc {
     r: 100,
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
         }
         ["insert", name, script_path] => ups.insert((*name).to_string(), script_path)?,
         ["snapshot", name] => ups.snapshot(name)?,
-        ["get", name] => println!("{}", ups.latest_value(name)?),
+        ["get", name] => println!("{}", ups.latest_value(name)?.join_it()?),
         ["show", name] => {
             let (path, content) = ups.show_script(name)?;
             println!("{}\n{}", path.display().color(PURPLE_COLOR), content);
@@ -49,7 +49,7 @@ trait Actions {
     fn print(&self);
     fn insert(&mut self, name: String, script_path: &str) -> Result<()>;
     fn snapshot(&mut self, name: &str) -> Result<()>;
-    fn latest_value(&self, name: &str) -> Result<String>;
+    fn latest_value(&self, name: &str) -> Result<std::thread::JoinHandle<Result<String>>>;
     fn show_script(&self, name: &str) -> Result<(PathBuf, String)>;
 }
 trait ActionsInternal: Actions {
@@ -91,7 +91,7 @@ impl Actions for Ups {
     }
 
     fn snapshot(&mut self, name: &str) -> Result<()> {
-        let latest_value = self.latest_value(name)?;
+        let latest_value = self.latest_value(name)?.join_it()?;
         let app = self.apps.get_mut(name).expect("Already checked");
         app.latest_value = latest_value.clone();
         app.snapshot_value = latest_value;
@@ -128,37 +128,46 @@ impl Actions for Ups {
         }
         println!("\n{}", table.render());
     }
-    fn latest_value(&self, name: &str) -> Result<String> {
+    fn latest_value(&self, name: &str) -> Result<std::thread::JoinHandle<Result<String>>> {
         let app = self
             .apps
             .get(name)
             .ok_or(format!("App `{}` is not registered.", name))?;
-        print!(
-            "{}",
-            format!("Fetching latest value of `{}` app...", name).yellow()
-        );
-        std::io::stdout().flush()?;
-        let output = Command::new(&app.script_path).output()?;
-        let value = String::from_utf8(output.stdout)?;
-        let value = value.trim();
+        let script_path = app.script_path.clone();
+        let name = name.to_owned();
 
-        if output.status.success() && !value.is_empty() {
-            println!("{}", "Ok".green().bold());
-            Ok(value.to_owned())
-        } else {
-            println!("{}", "Failed".red().bold());
-            Ok(NONE.to_owned())
-        }
+        Ok(std::thread::spawn(move || {
+            println!(
+                "{}",
+                format!("Fetching latest value of `{}` app...", name).yellow()
+            );
+            std::io::stdout().flush()?;
+
+            let output = Command::new(script_path).output()?;
+            let value = String::from_utf8(output.stdout)?;
+            let value = value.trim();
+
+            if output.status.success() && !value.is_empty() {
+                Ok(value.to_owned())
+            } else {
+                Ok(NONE.to_owned())
+            }
+        }))
     }
 
     fn update_latest_value(&mut self) -> Result<()> {
         let apps: Vec<_> = self.apps.iter().map(|(name, _)| name.clone()).collect();
+        let mut new_values = vec![];
         for name in apps {
             let latest_value = self.latest_value(&name)?;
-            self.apps
-                .get_mut(&name)
-                .expect("Already checked")
-                .latest_value = latest_value;
+            new_values.push((name, latest_value));
+        }
+        let new_values: Vec<_> = new_values
+            .into_iter()
+            .map(|(n, v)| (n, v.join_it()))
+            .collect();
+        for (n, v) in new_values {
+            self.apps.get_mut(&n).expect("Already checked").latest_value = v?;
         }
         Ok(())
     }
@@ -247,4 +256,13 @@ const fn usage() -> &'static str {
     - ups snapshot [app] # Snapshot latest version
     - ups get [app] # Show the latest version of the specified app
     - ups show [app] # Show the script of the specified app"
+}
+
+trait Join<T> {
+    fn join_it(self) -> T;
+}
+impl<T> Join<T> for std::thread::JoinHandle<T> {
+    fn join_it(self) -> T {
+        self.join().expect("Thread panicked")
+    }
 }
