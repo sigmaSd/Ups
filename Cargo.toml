@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 dirs = "4.0.0"
-scolor = "6.0.0"
+scolor = { version = "8.0.0" , features = ["zero-cost"]}
 term-table = "1.3.2"
 
 [features]
+

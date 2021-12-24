@@ -110,9 +110,9 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
 name = "scolor"
-version = "6.0.0"
+version = "8.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "477c995a65b8b99e1d966f801a3012103a37107b23615bbc5ff84565adf64ac3"
+checksum = "fd8e5ac43f4c4da04a07a4f4dfb98d6c987a47147aa9177e36cd581b5914bbac"
 
 [[package]]
 name = "term-table"

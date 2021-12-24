@@ -2,16 +2,13 @@ use std::io::Write;
 use std::path::Path;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, process::Command};
 
-use scolor::{Color, ColorDesc, ColorExt, ColorType};
+use scolor::{Color, ColorDesc, ColorExt, CustomStyle, Effect};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
-const PURPLE_COLOR: ColorDesc = ColorDesc {
-    r: 100,
-    g: 80,
-    b: 250,
-    color_type: ColorType::Fg,
-};
+const PURPLE_COLOR: ColorDesc = ColorDesc::rgb(100, 80, 250);
+const LIGHT_BLUE_UNDERLINE: CustomStyle<1, 1> = ([ColorDesc::light_blue()], [Effect::Underline]);
+
 const NONE: &str = "NONE";
 
 fn main() -> Result<()> {
@@ -107,23 +104,23 @@ impl Actions for Ups {
         table.style = TableStyle::rounded();
 
         table.add_row(Row::new(vec![
-            TableCell::new("App".light_blue().underline()),
-            TableCell::new("SnapshotValue".light_blue().underline()),
-            TableCell::new("LatestValue".light_blue().underline()),
-            TableCell::new("ScriptPath".light_blue().underline()),
+            TableCell::new("App".custom(LIGHT_BLUE_UNDERLINE)),
+            TableCell::new("SnapshotValue".custom(LIGHT_BLUE_UNDERLINE)),
+            TableCell::new("LatestValue".custom(LIGHT_BLUE_UNDERLINE)),
+            TableCell::new("ScriptPath".custom(LIGHT_BLUE_UNDERLINE)),
         ]));
 
         for (name, app) in &self.apps {
             let diff_color = if app.snapshot_value == app.latest_value {
-                ColorExt::green
+                scolor::green
             } else {
-                ColorExt::red
+                scolor::red
             };
             table.add_row(Row::new(vec![
-                TableCell::new(name.yellow().bold()),
+                TableCell::new(name.yellow().bold::<1>()),
                 TableCell::new(diff_color(&app.snapshot_value)),
                 TableCell::new(diff_color(&app.latest_value)),
-                TableCell::new(app.script_path.display().color(PURPLE_COLOR).italic()),
+                TableCell::new(app.script_path.display().color(PURPLE_COLOR).italic::<1>()),
             ]));
         }
         println!("\n{}", table.render());
