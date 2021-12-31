@@ -110,7 +110,10 @@ impl Actions for Ups {
             TableCell::new("ScriptPath".custom(LIGHT_BLUE_UNDERLINE)),
         ]));
 
-        for (name, app) in &self.apps {
+        let mut apps: Vec<(&String, &App)> = self.apps.iter().collect();
+        apps.sort_by_key(|(name, _)| *name);
+
+        for (name, app) in apps {
             let diff_color = if app.snapshot_value == app.latest_value {
                 scolor::green
             } else {
