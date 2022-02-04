@@ -30,6 +30,7 @@ fn main() -> Result<()> {
             ups.print();
         }
         ["insert", name, script_path] => ups.insert((*name).to_string(), script_path)?,
+        ["remove", name] => ups.remove((*name).to_string())?,
         ["snapshot", name] => ups.snapshot(name)?,
         ["get", name] => println!("{}", ups.latest_value(name)?.tawait()?),
         ["show", name] => {
@@ -45,6 +46,7 @@ trait Actions {
     fn update_latest_value(&mut self) -> Result<()>;
     fn print(&self);
     fn insert(&mut self, name: String, script_path: &str) -> Result<()>;
+    fn remove(&mut self, name: String) -> Result<()>;
     fn snapshot(&mut self, name: &str) -> Result<()>;
     fn latest_value(&self, name: &str) -> Result<std::thread::JoinHandle<Result<String>>>;
     fn show_script(&self, name: &str) -> Result<(PathBuf, String)>;
@@ -75,23 +77,20 @@ struct Ups {
 }
 
 impl Actions for Ups {
-    fn insert(&mut self, name: String, script_path: &str) -> Result<()> {
-        self.apps.insert(
-            name,
-            App {
-                script_path: Path::new(script_path).canonicalize()?,
-                latest_value: NONE.to_owned(),
-                snapshot_value: NONE.to_owned(),
-            },
-        );
-        Ok(())
-    }
-
-    fn snapshot(&mut self, name: &str) -> Result<()> {
-        let latest_value = self.latest_value(name)?.tawait()?;
-        let app = self.apps.get_mut(name).expect("Already checked");
-        app.latest_value = latest_value.clone();
-        app.snapshot_value = latest_value;
+    fn update_latest_value(&mut self) -> Result<()> {
+        let apps: Vec<_> = self.apps.iter().map(|(name, _)| name.clone()).collect();
+        let mut new_values = vec![];
+        for name in apps {
+            let latest_value = self.latest_value(&name)?;
+            new_values.push((name, latest_value));
+        }
+        let new_values: Vec<_> = new_values
+            .into_iter()
+            .map(|(n, v)| (n, v.tawait()))
+            .collect();
+        for (n, v) in new_values {
+            self.apps.get_mut(&n).expect("Already checked").latest_value = v?;
+        }
         Ok(())
     }
 
@@ -128,6 +127,34 @@ impl Actions for Ups {
         }
         println!("\n{}", table.render());
     }
+
+    fn insert(&mut self, name: String, script_path: &str) -> Result<()> {
+        self.apps.insert(
+            name,
+            App {
+                script_path: Path::new(script_path).canonicalize()?,
+                latest_value: NONE.to_owned(),
+                snapshot_value: NONE.to_owned(),
+            },
+        );
+        Ok(())
+    }
+
+    fn remove(&mut self, name: String) -> Result<()> {
+        if self.apps.remove(&name).is_none() {
+            return Err("App does not exist".into());
+        }
+        Ok(())
+    }
+
+    fn snapshot(&mut self, name: &str) -> Result<()> {
+        let latest_value = self.latest_value(name)?.tawait()?;
+        let app = self.apps.get_mut(name).expect("Already checked");
+        app.latest_value = latest_value.clone();
+        app.snapshot_value = latest_value;
+        Ok(())
+    }
+
     fn latest_value(&self, name: &str) -> Result<std::thread::JoinHandle<Result<String>>> {
         let app = self
             .apps
@@ -153,23 +180,6 @@ impl Actions for Ups {
                 Ok(NONE.to_owned())
             }
         }))
-    }
-
-    fn update_latest_value(&mut self) -> Result<()> {
-        let apps: Vec<_> = self.apps.iter().map(|(name, _)| name.clone()).collect();
-        let mut new_values = vec![];
-        for name in apps {
-            let latest_value = self.latest_value(&name)?;
-            new_values.push((name, latest_value));
-        }
-        let new_values: Vec<_> = new_values
-            .into_iter()
-            .map(|(n, v)| (n, v.tawait()))
-            .collect();
-        for (n, v) in new_values {
-            self.apps.get_mut(&n).expect("Already checked").latest_value = v?;
-        }
-        Ok(())
     }
 
     fn show_script(&self, name: &str) -> Result<(PathBuf, String)> {
